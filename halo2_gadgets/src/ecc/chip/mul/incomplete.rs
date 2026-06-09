@@ -305,9 +305,17 @@ impl<const NUM_BITS: usize> Config<NUM_BITS> {
             z = region.assign_advice(|| "z", self.z, row + offset, || z_val)?;
             zs.push(Z(z.clone()));
 
-            // Assign `x_p`, `y_p`
-            region.assign_advice(|| "x_p", self.double_and_add.x_p, row + offset, || x_p)?;
-            region.assign_advice(|| "y_p", self.y_p, row + offset, || y_p)?;
+            // Anchor the base on the first row so q_mul_2 propagates it (fixes unconstrained-base soundness bug).
+            // https://github.com/zcash/halo2/commit/d8e48efddbe4746d76eb2c8a843a6ddc2b9a727a
+            if row == 0 {
+                base.x
+                    .copy_advice(|| "x_p", region, self.double_and_add.x_p, row + offset)?;
+                base.y
+                    .copy_advice(|| "y_p", region, self.y_p, row + offset)?;
+            } else {
+                region.assign_advice(|| "x_p", self.double_and_add.x_p, row + offset, || x_p)?;
+                region.assign_advice(|| "y_p", self.y_p, row + offset, || y_p)?;
+            }
 
             // If the bit is set, use `y`; if the bit is not set, use `-y`
             let y_p = y_p
